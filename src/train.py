@@ -18,7 +18,7 @@ random_seed = 42
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # Load data
-data_path = '../../PycharmProjects/Transformer-From-Sctatch/dataset/spa.txt'
+data_path = '../dataset/spa.txt'
 with open(data_path, 'r', encoding='utf-8') as f:
     lines = f.readlines()
 

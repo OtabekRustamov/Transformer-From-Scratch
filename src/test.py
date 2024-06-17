@@ -27,7 +27,7 @@ from torch import Tensor
 # Ensure you have these classes defined above or import them if they are in another module.
 
 # Load the model and load the state dictionary
-model_path = "train model/transformer_state_dict_epoch_3"
+model_path = "../train model/transformer_state_dict_epoch_3"
 state_dict = torch.load(model_path)
 
 src_vocab_size = 10_000
@@ -53,7 +53,7 @@ from torchtext.vocab import build_vocab_from_iterator
 # Ensure you have these classes defined above or import them if they are in another module.
 
 # Load the model and load the state dictionary
-model_path = "train model/transformer_state_dict_epoch_3"
+model_path = "../train model/transformer_state_dict_epoch_3"
 state_dict = torch.load(model_path)
 
 src_vocab_size = 10_000
@@ -95,7 +95,7 @@ def yield_tokens(data_iter, language):
 
 
 # Use the same data used for training to build the vocab again
-with open('../../PycharmProjects/Transformer-From-Sctatch/dataset/spa.txt', 'r', encoding='utf-8') as f:
+with open('../dataset/spa.txt', 'r', encoding='utf-8') as f:
     lines = f.readlines()
 
 lines = [line.split('\t') for line in lines]

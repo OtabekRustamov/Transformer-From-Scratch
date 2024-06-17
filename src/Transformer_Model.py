@@ -1,14 +1,10 @@
 # torch packages
 import torch.nn as nn
-from torch import Tensor
 import torch
-from torchtext.vocab import build_vocab_from_iterator
-from torchtext.datasets import Multi30k
-import io
-from Embeddings import Embeddings
-from PositionalEncoding import PositionalEncoding
-from EncoderLayer import EncoderLayer
-from DecoderLayer import DecoderLayer
+from src.Embeddings import Embeddings
+from src.PositionalEncoding import PositionalEncoding
+from src.EncoderLayer import EncoderLayer
+from src.DecoderLayer import DecoderLayer
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 class Transformer(nn.Module):
     def __init__(self, src_vocab_size, tgt_vocab_size, d_model, num_heads, num_layers, d_ff, max_seq_length, dropout):
