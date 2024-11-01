@@ -143,6 +143,5 @@ def translate(src):
 
 
 # Test the translation function
-print(translate("My name is John."))
-print(translate("I have three books and two pens."))
-print(translate("I am learning Spanish."))
+print(translate("Hello! My name is Otabek."))
+print(translate("I am learning Transformer and it is all you need"))

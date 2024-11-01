@@ -6,87 +6,56 @@ import math
 
 
 class MultiHeadAttention(nn.Module):
-    def __init__(self, d_model, n_heads, dropout):
-        """
-        Args:
-            d_model:      dimension of embeddings
-            n_heads:      number of self attention heads
-            dropout:      probability of dropout occurring
-        """
-        super().__init__()
-        assert d_model % n_heads == 0  # ensure an even num of heads
-        self.d_model = d_model  # 512 dim
-        self.n_heads = n_heads  # 8 heads
-        self.d_key = d_model // n_heads  # assume d_value equals d_key
+    def __init__(self, d_model, num_heads):
+        super(MultiHeadAttention, self).__init__()
+        # Ensure that the model dimension (d_model) is divisible by the number of heads
+        assert d_model % num_heads == 0, "d_model must be divisible by num_heads"
 
-        self.Wq = nn.Linear(d_model, d_model)  # query weights
-        self.Wk = nn.Linear(d_model, d_model)  # key weights
-        self.Wv = nn.Linear(d_model, d_model)  # value weights
-        self.Wo = nn.Linear(d_model, d_model)  # output weights
+        # Initialize dimensions
+        self.d_model = d_model  # Model's dimension
+        self.num_heads = num_heads  # Number of attention heads
+        self.d_k = d_model // num_heads  # Dimension of each head's key, query, and value
 
-        self.dropout = nn.Dropout(p=dropout)  # initialize dropout layer
+        # Linear layers for transforming inputs
+        self.W_q = nn.Linear(d_model, d_model)  # Query transformation
+        self.W_k = nn.Linear(d_model, d_model)  # Key transformation
+        self.W_v = nn.Linear(d_model, d_model)  # Value transformation
+        self.W_o = nn.Linear(d_model, d_model)  # Output transformation
 
-    def forward(self, query: Tensor, key: Tensor, value: Tensor, mask: Tensor = None):
-        """
-        Args:
-           query:         query vector         (batch_size, q_length, d_model)
-           key:           key vector           (batch_size, k_length, d_model)
-           value:         value vector         (batch_size, s_length, d_model)
-           mask:          mask for decoder
+    def scaled_dot_product_attention(self, Q, K, V, mask=None):
+        # Calculate attention scores
+        attn_scores = torch.matmul(Q, K.transpose(-2, -1)) / math.sqrt(self.d_k)
 
-        Returns:
-           output:        attention values     (batch_size, q_length, d_model)
-           attn_probs:    softmax scores       (batch_size, n_heads, q_length, k_length)
-        """
-        assert isinstance(key, torch.Tensor), "Expected key to be a tensor"
-        assert isinstance(query, torch.Tensor), "Expected query to be a tensor"
-        assert isinstance(value, torch.Tensor), "Expected value to be a tensor"
-
-        batch_size = key.size(0)
-
-        # calculate query, key, and value tensors
-        Q = self.Wq(query)  # (32, 10, 512) x (512, 512) = (32, 10, 512)
-        K = self.Wk(key)  # (32, 10, 512) x (512, 512) = (32, 10, 512)
-        V = self.Wv(value)  # (32, 10, 512) x (512, 512) = (32, 10, 512)
-
-        # split each tensor into n-heads to compute attention
-
-        # query tensor
-        Q = Q.view(batch_size, -1, self.n_heads, self.d_key).permute(0, 2, 1, 3)
-        # (32, 10, 8, 64) -> (32, 8, 10, 64) = (batch_size, n_heads, q_length, d_key)
-
-        # key tensor
-        K = K.view(batch_size, -1, self.n_heads, self.d_key).permute(0, 2, 1, 3)
-        # (32, 10, 8, 64) -> (32, 8, 10, 64) = (batch_size, n_heads, k_length, d_key)
-
-        # value tensor
-        V = V.view(batch_size, -1, self.n_heads, self.d_key).permute(0, 2, 1, 3)
-        # (32, 10, 8, 64) -> (32, 8, 10, 64) = (batch_size, n_heads, v_length, d_key)
-
-        # computes attention
-        # scaled dot product -> QK^{T}
-        scaled_dot_prod = torch.matmul(Q, K.permute(0, 1, 3, 2)) / math.sqrt(self.d_key)
-        # (32, 8, 10, 64) x (32, 8, 64, 10) -> (32, 8, 10, 10) = (batch_size, n_heads, q_length, k_length)
-
-        # fill those positions of product as (-1e10) where mask positions are 0
+        # Apply mask if provided (useful for preventing attention to certain parts like padding)
         if mask is not None:
-            scaled_dot_prod = scaled_dot_prod.masked_fill(mask == 0, -1e4)
+            attn_scores = attn_scores.masked_fill(mask == 0, -1e9)
 
-        # apply softmax
-        attn_probs = torch.softmax(scaled_dot_prod, dim=-1)
+        # Softmax is applied to obtain attention probabilities
+        attn_probs = torch.softmax(attn_scores, dim=-1)
 
-        # multiply by values to get attention
-        A = torch.matmul(self.dropout(attn_probs), V)  # (32, 8, 10, 10) x (32, 8, 10, 64) -> (32, 8, 10, 64)
-        # (batch_size, n_heads, q_length, k_length) x (batch_size, n_heads, v_length, d_key) -> (batch_size, n_heads, q_length, d_key)
+        # Multiply by values to obtain the final output
+        output = torch.matmul(attn_probs, V)
+        return output
 
-        # reshape attention back to (32, 10, 512)
-        A = A.permute(0, 2, 1, 3).contiguous()
-        # (32, 8, 10, 64) -> (32, 10, 8, 64)
+    def split_heads(self, x):
+        # Reshape the input to have num_heads for multi-head attention
+        batch_size, seq_length, d_model = x.size()
+        return x.view(batch_size, seq_length, self.num_heads, self.d_k).transpose(1, 2)
 
-        A = A.view(batch_size, -1, self.n_heads * self.d_key)
-        # (32, 10, 8, 64) -> (32, 10, 8*64) -> (32, 10, 512) = (batch_size, q_length, d_model)
+    def combine_heads(self, x):
+        # Combine the multiple heads back to original shape
+        batch_size, _, seq_length, d_k = x.size()
+        return x.transpose(1, 2).contiguous().view(batch_size, seq_length, self.d_model)
 
-        # push through the final weight layer
-        output = self.Wo(A)  # (32, 10, 512) x (512, 512) = (32, 10, 512)
+    def forward(self, Q, K, V, mask=None):
+        # Apply linear transformations and split heads
+        Q = self.split_heads(self.W_q(Q))
+        K = self.split_heads(self.W_k(K))
+        V = self.split_heads(self.W_v(V))
 
-        return output, attn_probs  # return attn_probs for visualization of the scores
+        # Perform scaled dot-product attention
+        attn_output = self.scaled_dot_product_attention(Q, K, V, mask)
+
+        # Combine heads and apply output transformation
+        output = self.W_o(self.combine_heads(attn_output))
+        return output
